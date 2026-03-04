@@ -1,75 +1,147 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
+using Cinemachine;
 using System.Collections;
 using System.IO;
 
 public class PhotoMode : MonoBehaviour
 {
-    public GameObject cameraOverlay;
-    public Camera playerCamera;
+    [Header("References")]
+    public CinemachineVirtualCamera virtualCam;
+    public GameObject photoUI;       
+    public Image flashImage;
 
-    public float normalFOV = 60f;
-    public float photoFOV = 45f;
-    public float zoomSpeed = 8f;
+    [Header("Zoom Settings")]
+    public float zoomSpeed = 0.05f;
+    public float minFOV = 20f;
+    public float maxFOV = 60f;
 
-    private InputSystem_Actions inputActions;
-    private bool isInPhotoMode = false;
+    [Header("Photo Settings")]
+    public float flashDuration = 0.15f;
 
-    private void Awake()
+    private float defaultFOV;
+    private float currentFOV;
+    private bool isPhotoMode = false;
+
+    void Start()
     {
-        inputActions = new InputSystem_Actions();
-    }
+        if (virtualCam == null)
+        {
+            Debug.LogError("Virtual Camera non assignée !");
+            return;
+        }
 
-    private void OnEnable()
-    {
-        inputActions.Enable();
-    }
+        defaultFOV = virtualCam.m_Lens.FieldOfView;
+        currentFOV = defaultFOV;
 
-    private void OnDisable()
-    {
-        inputActions.Disable();
+        if (photoUI != null)
+            photoUI.SetActive(false);
+
+        if (flashImage != null)
+            flashImage.color = new Color(1, 1, 1, 0);
     }
 
     void Update()
     {
-        isInPhotoMode = inputActions.Player.PhotoMode.ReadValue<float>() > 0;
+        HandlePhotoMode();
 
-        cameraOverlay.SetActive(isInPhotoMode);
+        if (!isPhotoMode) return;
 
-        float targetFOV = isInPhotoMode ? photoFOV : normalFOV;
+        HandleZoom();
 
-        playerCamera.fieldOfView = Mathf.Lerp(
-            playerCamera.fieldOfView,
-            targetFOV,
-            Time.deltaTime * zoomSpeed
-        );
-
-        if (isInPhotoMode && inputActions.Player.TakePhoto.triggered)
+        if (Mouse.current.leftButton.wasPressedThisFrame)
         {
             StartCoroutine(TakePhoto());
         }
     }
 
+    void HandlePhotoMode()
+    {
+        if (Mouse.current.rightButton.isPressed)
+        {
+            if (!isPhotoMode)
+            {
+                isPhotoMode = true;
+
+                if (photoUI != null)
+                    photoUI.SetActive(true);
+            }
+        }
+        else
+        {
+            if (isPhotoMode)
+            {
+                isPhotoMode = false;
+
+                if (photoUI != null)
+                    photoUI.SetActive(false);
+
+                // Reset zoom quand on quitte
+                currentFOV = defaultFOV;
+                virtualCam.m_Lens.FieldOfView = defaultFOV;
+            }
+        }
+    }
+
+    void HandleZoom()
+    {
+        float scroll = Mouse.current.scroll.ReadValue().y;
+
+        if (scroll != 0)
+        {
+            currentFOV -= scroll * zoomSpeed;
+            currentFOV = Mathf.Clamp(currentFOV, minFOV, maxFOV);
+
+            virtualCam.m_Lens.FieldOfView = currentFOV;
+        }
+    }
+
     IEnumerator TakePhoto()
     {
-        cameraOverlay.SetActive(false);
-
         yield return new WaitForEndOfFrame();
 
-        string folderPath = Application.dataPath + "/Photos";
+        string folderPath;
+
+        #if UNITY_EDITOR
+                folderPath = Path.Combine(Application.dataPath, "Photos");
+        #else
+            folderPath = Path.Combine(Application.persistentDataPath, "Photos");
+        #endif
 
         if (!Directory.Exists(folderPath))
             Directory.CreateDirectory(folderPath);
 
-        string fileName = "Photo_" + System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss") + ".png";
+        string fileName = "Photo_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png";
         string fullPath = Path.Combine(folderPath, fileName);
 
         ScreenCapture.CaptureScreenshot(fullPath);
 
-        Debug.Log("Photo sauvegardée : " + fullPath);
+        Debug.Log("PHOTO SAVED AT: " + fullPath);
 
-        yield return new WaitForSeconds(0.1f);
+        #if UNITY_EDITOR
+                UnityEditor.AssetDatabase.Refresh();
+        #endif
 
-        cameraOverlay.SetActive(true);
+        StartCoroutine(Flash());
+    }
+
+    IEnumerator Flash()
+    {
+        if (flashImage == null)
+            yield break;
+
+        float timer = 0f;
+
+        while (timer < flashDuration)
+        {
+            float alpha = Mathf.Lerp(1f, 0f, timer / flashDuration);
+            flashImage.color = new Color(1, 1, 1, alpha);
+
+            timer += Time.deltaTime;
+            yield return null;
+        }
+
+        flashImage.color = new Color(1, 1, 1, 0f);
     }
 }
