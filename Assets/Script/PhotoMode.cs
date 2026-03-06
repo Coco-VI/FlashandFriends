@@ -11,7 +11,8 @@ public class PhotoMode : MonoBehaviour
     public CinemachineVirtualCamera virtualCam;
     public GameObject photoUI;
     public Image flashImage;
-    public MissionManager missionManager;  
+    public MissionManager missionManager;
+    public PhotoScoreManager scoreManager;
 
     [Header("Zoom Settings")]
     public float zoomSpeed = 0.05f;
@@ -40,18 +41,19 @@ public class PhotoMode : MonoBehaviour
             photoUI.SetActive(false);
 
         if (flashImage != null)
-            flashImage.color = new Color(1, 1, 1, 0);
+            flashImage.color = new Color(1f, 1f, 1f, 0f);
     }
 
     void Update()
     {
         HandlePhotoMode();
 
-        if (!isPhotoMode) return;
+        if (!isPhotoMode)
+            return;
 
         HandleZoom();
 
-        if (Mouse.current.leftButton.wasPressedThisFrame)
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
         {
             StartCoroutine(TakePhoto());
         }
@@ -59,7 +61,7 @@ public class PhotoMode : MonoBehaviour
 
     void HandlePhotoMode()
     {
-        if (Mouse.current.rightButton.isPressed)
+        if (Mouse.current != null && Mouse.current.rightButton.isPressed)
         {
             if (!isPhotoMode)
             {
@@ -86,9 +88,12 @@ public class PhotoMode : MonoBehaviour
 
     void HandleZoom()
     {
+        if (Mouse.current == null)
+            return;
+
         float scroll = Mouse.current.scroll.ReadValue().y;
 
-        if (scroll != 0)
+        if (scroll != 0f)
         {
             currentFOV -= scroll * zoomSpeed;
             currentFOV = Mathf.Clamp(currentFOV, minFOV, maxFOV);
@@ -99,7 +104,8 @@ public class PhotoMode : MonoBehaviour
 
     IEnumerator TakePhoto()
     {
-        photoUI.SetActive(false);
+        if (photoUI != null)
+            photoUI.SetActive(false);
 
         yield return new WaitForEndOfFrame();
 
@@ -118,7 +124,6 @@ public class PhotoMode : MonoBehaviour
         string fullPath = Path.Combine(folderPath, fileName);
 
         ScreenCapture.CaptureScreenshot(fullPath);
-
         Debug.Log("PHOTO SAVED AT: " + fullPath);
 
 #if UNITY_EDITOR
@@ -130,9 +135,17 @@ public class PhotoMode : MonoBehaviour
             missionManager.CheckPhoto();
         }
 
-        StartCoroutine(Flash());
+        if (scoreManager != null)
+        {
+            scoreManager.CalculateScore();
+        }
 
-        photoUI.SetActive(false);
+        yield return StartCoroutine(Flash());
+
+        if (isPhotoMode && photoUI != null)
+        {
+            photoUI.SetActive(true);
+        }
     }
 
     IEnumerator Flash()
@@ -145,12 +158,12 @@ public class PhotoMode : MonoBehaviour
         while (timer < flashDuration)
         {
             float alpha = Mathf.Lerp(1f, 0f, timer / flashDuration);
-            flashImage.color = new Color(1, 1, 1, alpha);
+            flashImage.color = new Color(1f, 1f, 1f, alpha);
 
             timer += Time.deltaTime;
             yield return null;
         }
 
-        flashImage.color = new Color(1, 1, 1, 0f);
+        flashImage.color = new Color(1f, 1f, 1f, 0f);
     }
 }
