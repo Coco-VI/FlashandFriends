@@ -118,7 +118,10 @@ public class PhotoMode : MonoBehaviour
 #endif
 
         if (!Directory.Exists(folderPath))
+        {
             Directory.CreateDirectory(folderPath);
+            Debug.Log("Created photo folder: " + folderPath);
+        }
 
         string fileName = "Photo_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".png";
         string fullPath = Path.Combine(folderPath, fileName);
