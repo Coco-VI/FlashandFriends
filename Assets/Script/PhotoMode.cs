@@ -9,8 +9,9 @@ public class PhotoMode : MonoBehaviour
 {
     [Header("References")]
     public CinemachineVirtualCamera virtualCam;
-    public GameObject photoUI;       
+    public GameObject photoUI;
     public Image flashImage;
+    public MissionManager missionManager;  
 
     [Header("Zoom Settings")]
     public float zoomSpeed = 0.05f;
@@ -77,7 +78,6 @@ public class PhotoMode : MonoBehaviour
                 if (photoUI != null)
                     photoUI.SetActive(false);
 
-                // Reset zoom quand on quitte
                 currentFOV = defaultFOV;
                 virtualCam.m_Lens.FieldOfView = defaultFOV;
             }
@@ -99,15 +99,17 @@ public class PhotoMode : MonoBehaviour
 
     IEnumerator TakePhoto()
     {
+        photoUI.SetActive(false);
+
         yield return new WaitForEndOfFrame();
 
         string folderPath;
 
-        #if UNITY_EDITOR
-                folderPath = Path.Combine(Application.dataPath, "Photos");
-        #else
-            folderPath = Path.Combine(Application.persistentDataPath, "Photos");
-        #endif
+#if UNITY_EDITOR
+        folderPath = Path.Combine(Application.dataPath, "Photos");
+#else
+        folderPath = Path.Combine(Application.persistentDataPath, "Photos");
+#endif
 
         if (!Directory.Exists(folderPath))
             Directory.CreateDirectory(folderPath);
@@ -119,11 +121,18 @@ public class PhotoMode : MonoBehaviour
 
         Debug.Log("PHOTO SAVED AT: " + fullPath);
 
-        #if UNITY_EDITOR
-                UnityEditor.AssetDatabase.Refresh();
-        #endif
+#if UNITY_EDITOR
+        UnityEditor.AssetDatabase.Refresh();
+#endif
+
+        if (missionManager != null)
+        {
+            missionManager.CheckPhoto();
+        }
 
         StartCoroutine(Flash());
+
+        photoUI.SetActive(false);
     }
 
     IEnumerator Flash()
